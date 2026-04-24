@@ -40,7 +40,7 @@ export default function ChatWindow({ session, onSend }) {
           className="chat-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a command… (look, take, attack, heal)"
+          placeholder="What do you do?"
         />
         <button className="btn-primary" type="submit" disabled={!input.trim()}>
           Send
