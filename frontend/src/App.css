@@ -1,0 +1,210 @@
+/* ===== Layout ===== */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1.2rem;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.status {
+  font-size: 0.8rem;
+}
+.status.connected { color: #a6e3a1; }
+.status.disconnected { color: #f38ba8; }
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===== Panels ===== */
+.panel {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #89b4fa;
+}
+
+.panel.empty {
+  justify-content: center;
+  align-items: center;
+  color: #585b70;
+}
+
+/* ===== Session Panel ===== */
+.session-panel {
+  width: 220px;
+  min-width: 180px;
+  border-right: 1px solid #313244;
+  background: #181825;
+  gap: 0.5rem;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.session-item {
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border: 1px solid #313244;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.session-item:hover { background: #2a2a3e; }
+.session-item.active {
+  background: #313244;
+  border-color: #89b4fa;
+  color: #89b4fa;
+}
+
+/* ===== Chat Panel ===== */
+.chat-panel {
+  flex: 1;
+  border-right: 1px solid #313244;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  margin-bottom: 0.75rem;
+}
+
+.message {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  max-width: 90%;
+  line-height: 1.4;
+}
+.message.ai {
+  background: #313244;
+  align-self: flex-start;
+}
+.message.user {
+  background: #1e3a5f;
+  align-self: flex-end;
+}
+
+.sender {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.chat-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  color: #cdd6f4;
+  font-size: 0.95rem;
+  outline: none;
+}
+.chat-input:focus { border-color: #89b4fa; }
+
+/* ===== State Panel ===== */
+.state-panel {
+  width: 220px;
+  min-width: 180px;
+  background: #181825;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+}
+
+.hp-bar-bg {
+  height: 12px;
+  background: #313244;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s, background-color 0.3s;
+}
+
+.inventory h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: #a6adc8;
+  text-transform: uppercase;
+}
+
+.inventory ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inventory li {
+  background: #313244;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* ===== Shared ===== */
+.btn-primary {
+  padding: 0.5rem 0.9rem;
+  background: #89b4fa;
+  color: #11111b;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hint {
+  font-size: 0.8rem;
+  color: #585b70;
+  margin: 0.25rem 0 0;
+}
