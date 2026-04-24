@@ -4,7 +4,9 @@ import ChatWindow from './components/ChatWindow';
 import StatePanel from './components/StatePanel';
 import './App.css';
 
-const WS_URL = 'ws://localhost:8080/ws';
+// In dev: connect directly to the Go backend.
+// In Docker (behind nginx proxy): use the same host with /ws path.
+const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.host}/ws`;
 
 export default function App() {
   const [ws, setWs] = useState(null);

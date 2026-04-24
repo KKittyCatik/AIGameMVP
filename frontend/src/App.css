@@ -146,34 +146,20 @@
   background: #181825;
 }
 
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 1rem;
+.inventory {
+  margin-bottom: 1.2rem;
 }
 
-.hp-bar-bg {
-  height: 12px;
-  background: #313244;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.hp-bar-fill {
-  height: 100%;
-  border-radius: 6px;
-  transition: width 0.3s, background-color 0.3s;
-}
-
-.inventory h3 {
+.inventory h3,
+.effects h3 {
   margin: 0 0 0.4rem;
   font-size: 0.85rem;
   color: #a6adc8;
   text-transform: uppercase;
 }
 
-.inventory ul {
+.inventory ul,
+.effects ul {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -182,7 +168,8 @@
   gap: 0.3rem;
 }
 
-.inventory li {
+.inventory li,
+.effects li {
   background: #313244;
   padding: 0.3rem 0.6rem;
   border-radius: 4px;

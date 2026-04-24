@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
-	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -15,8 +18,8 @@ import (
 // --- Domain Models ---
 
 type GameState struct {
-	HP        int      `json:"hp"`
 	Inventory []string `json:"inventory"`
+	Effects   []string `json:"effects"`
 }
 
 type Message struct {
@@ -38,39 +41,165 @@ var (
 	mu       sync.Mutex
 )
 
-// --- AI Engine (Mock) ---
+// --- AI Engine ---
 
+// AIResponse is the structure the LLM must return as JSON.
 type AIResponse struct {
-	Text         string
-	HPDelta      int
-	InventoryAdd []string
+	Text            string   `json:"text"`
+	InventoryAdd    []string `json:"inventory_add"`
+	InventoryRemove []string `json:"inventory_remove"`
+	EffectsAdd      []string `json:"effects_add"`
+	EffectsRemove   []string `json:"effects_remove"`
 }
 
-func ProcessPlayerMessage(msg string, state GameState) AIResponse {
-	msg = strings.ToLower(strings.TrimSpace(msg))
-	resp := AIResponse{HPDelta: 0, InventoryAdd: []string{}}
+// openAIChatRequest mirrors the OpenAI /v1/chat/completions request body.
+type openAIChatRequest struct {
+	Model          string              `json:"model"`
+	Messages       []openAIChatMessage `json:"messages"`
+	ResponseFormat map[string]string   `json:"response_format,omitempty"`
+}
 
-	switch {
-	case strings.Contains(msg, "look"):
-		resp.Text = "You look around. It's dark, but you spot a shiny sword on the ground."
-	case strings.Contains(msg, "take") || strings.Contains(msg, "grab"):
-		resp.Text = "You grabbed the item!"
-		resp.InventoryAdd = append(resp.InventoryAdd, "Sword")
-	case strings.Contains(msg, "attack") || strings.Contains(msg, "fight"):
-		resp.Text = "You swing wildly at the darkness. You trip and hurt yourself."
-		resp.HPDelta = -10
-	case strings.Contains(msg, "heal") || strings.Contains(msg, "drink"):
-		resp.Text = "You drink a strange potion you found in your pocket. You feel better!"
-		resp.HPDelta = 20
-	default:
-		responses := []string{
-			"The shadows seem to whisper back.",
-			"You hear a distant echoing footstep.",
-			"A cold wind blows through the cavern.",
-		}
-		resp.Text = responses[rand.Intn(len(responses))]
+type openAIChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// openAIChatResponse holds the fields we need from the API response.
+type openAIChatResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
+
+const defaultSystemPrompt = `You are the Game Master of a text-based adventure game.
+Respond to the player's action with a short narrative (1–3 sentences).
+You MUST reply ONLY with a valid JSON object (no markdown, no extra text) matching this schema:
+{
+  "text": "<narrative response>",
+  "inventory_add": ["<item>"],
+  "inventory_remove": ["<item>"],
+  "effects_add": ["<buff or debuff, e.g. drunk, slowed, poisoned>"],
+  "effects_remove": ["<effect to remove>"]
+}
+All list fields default to empty arrays [] when unused.
+Keep the game atmospheric and fun.`
+
+func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) AIResponse {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		log.Println("OPENAI_API_KEY not set – using fallback response")
+		return AIResponse{Text: "The shadows whisper... (set OPENAI_API_KEY to enable the AI Game Master)"}
 	}
-	return resp
+
+	systemPrompt := os.Getenv("SYSTEM_PROMPT")
+	if systemPrompt == "" {
+		systemPrompt = defaultSystemPrompt
+	}
+
+	// Build conversation context (last 10 messages for brevity).
+	stateJSON, _ := json.Marshal(state)
+	contextMsg := fmt.Sprintf("Current player state: %s", string(stateJSON))
+
+	msgs := []openAIChatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "system", Content: contextMsg},
+	}
+
+	start := 0
+	if len(history) > 10 {
+		start = len(history) - 10
+	}
+	for _, m := range history[start:] {
+		role := "user"
+		if m.Sender == "ai" {
+			role = "assistant"
+		}
+		msgs = append(msgs, openAIChatMessage{Role: role, Content: m.Text})
+	}
+	msgs = append(msgs, openAIChatMessage{Role: "user", Content: playerMsg})
+
+	reqBody := openAIChatRequest{
+		Model:          "gpt-4o-mini",
+		Messages:       msgs,
+		ResponseFormat: map[string]string{"type": "json_object"},
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		log.Println("marshal error:", err)
+		return AIResponse{Text: "The magic fails. (internal error)"}
+	}
+
+	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(bodyBytes))
+	if err != nil {
+		log.Println("request build error:", err)
+		return AIResponse{Text: "The magic fails. (internal error)"}
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		log.Println("OpenAI request error:", err)
+		return AIResponse{Text: "The GM is lost in thought… (API error)"}
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("read error:", err)
+		return AIResponse{Text: "The GM is lost in thought… (read error)"}
+	}
+
+	var apiResp openAIChatResponse
+	if err := json.Unmarshal(raw, &apiResp); err != nil {
+		log.Println("unmarshal error:", err, "body:", string(raw))
+		return AIResponse{Text: "The GM is lost in thought… (parse error)"}
+	}
+
+	if apiResp.Error != nil {
+		log.Println("OpenAI API error:", apiResp.Error.Message)
+		return AIResponse{Text: "The GM is unavailable: " + apiResp.Error.Message}
+	}
+
+	if len(apiResp.Choices) == 0 {
+		log.Println("OpenAI returned no choices")
+		return AIResponse{Text: "Silence fills the room."}
+	}
+
+	content := strings.TrimSpace(apiResp.Choices[0].Message.Content)
+	var aiResp AIResponse
+	if err := json.Unmarshal([]byte(content), &aiResp); err != nil {
+		log.Println("AI response parse error:", err, "content:", content)
+		// Fall back: treat the raw content as plain text.
+		return AIResponse{Text: content}
+	}
+
+	return aiResp
+}
+
+// removeFromSlice removes all occurrences of items in toRemove from src (case-insensitive).
+func removeFromSlice(src, toRemove []string) []string {
+	if len(toRemove) == 0 {
+		return src
+	}
+	removeSet := make(map[string]struct{}, len(toRemove))
+	for _, v := range toRemove {
+		removeSet[strings.ToLower(v)] = struct{}{}
+	}
+	result := make([]string, 0, len(src))
+	for _, v := range src {
+		if _, skip := removeSet[strings.ToLower(v)]; !skip {
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 // --- WebSocket Handling ---
@@ -124,8 +253,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					ID:   id,
 					Name: fmt.Sprintf("Adventure %d", len(sessions)+1),
 					State: GameState{
-						HP:        100,
 						Inventory: []string{"Torch"},
+						Effects:   []string{},
 					},
 					Messages: []Message{
 						{Sender: "ai", Text: "Welcome to the dungeon. What do you do?"},
@@ -136,16 +265,31 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			if sess, exists := sessions[req.SessionID]; exists && req.Text != "" {
 				sess.Messages = append(sess.Messages, Message{Sender: "user", Text: req.Text})
 
-				aiResp := ProcessPlayerMessage(req.Text, sess.State)
+				// Copy state and history before releasing the lock so the long
+				// OpenAI call doesn't block other WebSocket clients.
+				stateCopy := GameState{
+					Inventory: append([]string(nil), sess.State.Inventory...),
+					Effects:   append([]string(nil), sess.State.Effects...),
+				}
+				historyCopy := append([]Message(nil), sess.Messages...)
+				mu.Unlock()
 
-				sess.State.HP += aiResp.HPDelta
-				if sess.State.HP > 100 {
-					sess.State.HP = 100
+				aiResp := ProcessPlayerMessage(req.Text, stateCopy, historyCopy)
+
+				mu.Lock()
+				// Re-fetch session in case it was removed while we were unlocked.
+				sess, exists = sessions[req.SessionID]
+				if !exists {
+					break
 				}
-				if sess.State.HP < 0 {
-					sess.State.HP = 0
-				}
+
+				// Update inventory
 				sess.State.Inventory = append(sess.State.Inventory, aiResp.InventoryAdd...)
+				sess.State.Inventory = removeFromSlice(sess.State.Inventory, aiResp.InventoryRemove)
+
+				// Update effects
+				sess.State.Effects = append(sess.State.Effects, aiResp.EffectsAdd...)
+				sess.State.Effects = removeFromSlice(sess.State.Effects, aiResp.EffectsRemove)
 
 				sess.Messages = append(sess.Messages, Message{Sender: "ai", Text: aiResp.Text})
 			}
@@ -157,7 +301,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano()) //nolint:staticcheck
 	http.HandleFunc("/ws", handleConnections)
 	fmt.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
