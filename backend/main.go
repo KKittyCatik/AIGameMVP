@@ -124,7 +124,7 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 	msgs = append(msgs, openAIChatMessage{Role: "user", Content: playerMsg})
 
 	reqBody := openAIChatRequest{
-		Model:          "gpt-4o-mini",
+		Model:          "google/gemma-4-26b-a4b-it:free",
 		Messages:       msgs,
 		ResponseFormat: map[string]string{"type": "json_object"},
 	}
@@ -135,7 +135,7 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 		return AIResponse{Text: "The magic fails. (internal error)"}
 	}
 
-	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(bodyBytes))
+	httpReq, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(bodyBytes))
 	if err != nil {
 		log.Println("request build error:", err)
 		return AIResponse{Text: "The magic fails. (internal error)"}
