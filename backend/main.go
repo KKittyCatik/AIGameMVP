@@ -52,11 +52,10 @@ type AIResponse struct {
 	EffectsRemove   []string `json:"effects_remove"`
 }
 
-// openAIChatRequest mirrors the OpenAI /v1/chat/completions request body.
+// openAIChatRequest mirrors the /v1/chat/completions request body.
 type openAIChatRequest struct {
-	Model          string              `json:"model"`
-	Messages       []openAIChatMessage `json:"messages"`
-	ResponseFormat map[string]string   `json:"response_format,omitempty"`
+	Model    string              `json:"model"`
+	Messages []openAIChatMessage `json:"messages"`
 }
 
 type openAIChatMessage struct {
@@ -134,9 +133,8 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 	msgs = append(msgs, openAIChatMessage{Role: "user", Content: playerMsg})
 
 	reqBody := openAIChatRequest{
-		Model:          model,
-		Messages:       msgs,
-		ResponseFormat: map[string]string{"type": "json_object"},
+		Model:    model,
+		Messages: msgs,
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -153,6 +151,8 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	httpReq.Header.Set("HTTP-Referer", "http://localhost:8080")
+	httpReq.Header.Set("X-Title", "AIGameMVP")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(httpReq)
@@ -166,6 +166,11 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 	if err != nil {
 		log.Println("read error:", err)
 		return AIResponse{Text: "The GM is lost in thought… (read error)"}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("API returned non-200 status %d: %s", resp.StatusCode, string(raw))
+		return AIResponse{Text: fmt.Sprintf("The GM is unavailable (HTTP %d). Check logs for details.", resp.StatusCode)}
 	}
 
 	var apiResp openAIChatResponse
