@@ -195,3 +195,52 @@
   color: #585b70;
   margin: 0.25rem 0 0;
 }
+
+/* ===== Prompt Panel ===== */
+.prompt-panel {
+  display: flex;
+  gap: 1rem;
+  padding: 0.65rem 1.2rem;
+  background: #12121c;
+  border-bottom: 1px solid #313244;
+  flex-shrink: 0;
+}
+
+.prompt-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.prompt-label {
+  font-size: 0.78rem;
+  color: #a6adc8;
+  white-space: nowrap;
+  padding-top: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prompt-textarea {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  color: #cdd6f4;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  line-height: 1.4;
+}
+.prompt-textarea:focus { border-color: #89b4fa; }
+.prompt-textarea:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.prompt-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  align-self: flex-start;
+  margin-top: 0.1rem;
+}

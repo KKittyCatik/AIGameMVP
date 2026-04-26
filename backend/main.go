@@ -28,18 +28,27 @@ type Message struct {
 }
 
 type Session struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	State    GameState `json:"state"`
-	Messages []Message `json:"messages"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	State         GameState `json:"state"`
+	Messages      []Message `json:"messages"`
+	SessionPrompt string    `json:"session_prompt"`
 }
 
 // --- Global State (In-Memory) ---
 
 var (
-	sessions = make(map[string]*Session)
-	mu       sync.Mutex
+	sessions     = make(map[string]*Session)
+	GlobalPrompt string
+	mu           sync.Mutex
 )
+
+func init() {
+	GlobalPrompt = os.Getenv("SYSTEM_PROMPT")
+	if GlobalPrompt == "" {
+		GlobalPrompt = defaultSystemPrompt
+	}
+}
 
 // --- AI Engine ---
 
@@ -88,7 +97,7 @@ You MUST reply ONLY with a valid JSON object (no markdown, no extra text) matchi
 All list fields default to empty arrays [] when unused.
 Keep the game atmospheric and fun.`
 
-func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) AIResponse {
+func ProcessPlayerMessage(playerMsg string, state GameState, history []Message, systemPrompt string) AIResponse {
 	apiKey := os.Getenv("AI_API_KEY")
 	if apiKey == "" {
 		log.Println("AI_API_KEY not set – using fallback response")
@@ -103,11 +112,6 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 	model := os.Getenv("AI_MODEL")
 	if model == "" {
 		model = "google/gemma-4-26b-a4b-it:free"
-	}
-
-	systemPrompt := os.Getenv("SYSTEM_PROMPT")
-	if systemPrompt == "" {
-		systemPrompt = defaultSystemPrompt
 	}
 
 	// Build conversation context (last 10 messages for brevity).
@@ -231,13 +235,14 @@ type ClientMessage struct {
 }
 
 type ServerUpdate struct {
-	Sessions map[string]*Session `json:"sessions"`
+	Sessions     map[string]*Session `json:"sessions"`
+	GlobalPrompt string              `json:"global_prompt"`
 }
 
 func sendUpdate(ws *websocket.Conn) {
 	mu.Lock()
 	defer mu.Unlock()
-	update := ServerUpdate{Sessions: sessions}
+	update := ServerUpdate{Sessions: sessions, GlobalPrompt: GlobalPrompt}
 	if err := ws.WriteJSON(update); err != nil {
 		log.Println("write error:", err)
 	}
@@ -277,9 +282,21 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 			}
+		case "update_global_prompt":
+			GlobalPrompt = req.Text
+		case "update_session_prompt":
+			if sess, exists := sessions[req.SessionID]; exists {
+				sess.SessionPrompt = req.Text
+			}
 		case "chat":
 			if sess, exists := sessions[req.SessionID]; exists && req.Text != "" {
 				sess.Messages = append(sess.Messages, Message{Sender: "user", Text: req.Text})
+
+				// Build combined prompt: GlobalPrompt + optional per-session override.
+				combinedPrompt := GlobalPrompt
+				if sess.SessionPrompt != "" {
+					combinedPrompt += "\n\n" + sess.SessionPrompt
+				}
 
 				// Copy state and history before releasing the lock so the long
 				// OpenAI call doesn't block other WebSocket clients.
@@ -290,7 +307,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				historyCopy := append([]Message(nil), sess.Messages...)
 				mu.Unlock()
 
-				aiResp := ProcessPlayerMessage(req.Text, stateCopy, historyCopy)
+				aiResp := ProcessPlayerMessage(req.Text, stateCopy, historyCopy, combinedPrompt)
 
 				mu.Lock()
 				// Re-fetch session in case it was removed while we were unlocked.
