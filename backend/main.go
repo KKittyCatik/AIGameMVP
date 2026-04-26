@@ -90,10 +90,20 @@ All list fields default to empty arrays [] when unused.
 Keep the game atmospheric and fun.`
 
 func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) AIResponse {
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	apiKey := os.Getenv("AI_API_KEY")
 	if apiKey == "" {
-		log.Println("OPENAI_API_KEY not set – using fallback response")
-		return AIResponse{Text: "The shadows whisper... (set OPENAI_API_KEY to enable the AI Game Master)"}
+		log.Println("AI_API_KEY not set – using fallback response")
+		return AIResponse{Text: "The shadows whisper... (set AI_API_KEY to enable the AI Game Master)"}
+	}
+
+	baseURL := os.Getenv("AI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://openrouter.ai/api/v1"
+	}
+
+	model := os.Getenv("AI_MODEL")
+	if model == "" {
+		model = "google/gemma-4-26b-a4b-it:free"
 	}
 
 	systemPrompt := os.Getenv("SYSTEM_PROMPT")
@@ -124,7 +134,7 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 	msgs = append(msgs, openAIChatMessage{Role: "user", Content: playerMsg})
 
 	reqBody := openAIChatRequest{
-		Model:          "google/gemma-4-26b-a4b-it:free",
+		Model:          model,
 		Messages:       msgs,
 		ResponseFormat: map[string]string{"type": "json_object"},
 	}
@@ -135,7 +145,8 @@ func ProcessPlayerMessage(playerMsg string, state GameState, history []Message) 
 		return AIResponse{Text: "The magic fails. (internal error)"}
 	}
 
-	httpReq, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(bodyBytes))
+	endpoint := strings.TrimRight(baseURL, "/") + "/chat/completions"
+	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		log.Println("request build error:", err)
 		return AIResponse{Text: "The magic fails. (internal error)"}

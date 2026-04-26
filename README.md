@@ -4,7 +4,7 @@ A minimal viable prototype of an AI-driven text-based game.
 
 ## Tech Stack
 
-- **Backend**: Go + gorilla/websocket + OpenAI API
+- **Backend**: Go + gorilla/websocket + OpenAI-compatible API (OpenRouter by default)
 - **Frontend**: React + Vite (served via nginx in Docker)
 - **Communication**: WebSocket
 - **Infrastructure**: Docker, docker-compose, Makefile
@@ -35,11 +35,11 @@ AIGameMVP/
 
 ## Quick Start (Docker – recommended)
 
-1. Copy `.env.example` to `.env` and add your OpenAI API key:
+1. Copy `.env.example` to `.env` and add your API key:
 
    ```bash
    cp .env.example .env
-   # edit .env and set OPENAI_API_KEY=sk-...
+   # edit .env and set AI_API_KEY=your-api-key-here
    ```
 
 2. Build and start everything:
@@ -63,8 +63,10 @@ AIGameMVP/
 
 ```bash
 cd backend
-export OPENAI_API_KEY=sk-...   # required for real AI responses
-export SYSTEM_PROMPT="..."     # optional, uses built-in default
+export AI_API_KEY=your-api-key-here   # required for real AI responses
+export AI_BASE_URL=https://openrouter.ai/api/v1  # optional, this is the default
+export AI_MODEL=google/gemma-4-26b-a4b-it:free   # optional, this is the default
+export SYSTEM_PROMPT="..."            # optional, uses built-in default
 go run main.go
 # Server starts on http://localhost:8080
 ```
@@ -85,7 +87,9 @@ Open http://localhost:5173 in your browser.
 
 | Variable         | Where          | Description                                           |
 |------------------|----------------|-------------------------------------------------------|
-| `OPENAI_API_KEY` | Backend / .env | **Required** for real AI. Without it, a fallback message is shown. |
+| `AI_API_KEY`     | Backend / .env | **Required** for real AI. Without it, a fallback message is shown. |
+| `AI_BASE_URL`    | Backend / .env | Base URL of the OpenAI-compatible API. Default: `https://openrouter.ai/api/v1`. |
+| `AI_MODEL`       | Backend / .env | Model identifier to use. Default: `google/gemma-4-26b-a4b-it:free`. |
 | `SYSTEM_PROMPT`  | Backend / .env | Optional custom system prompt for the Game Master AI. |
 | `VITE_WS_URL`    | Frontend dev   | WebSocket URL (e.g. `ws://localhost:8080/ws`). Omit in Docker. |
 
