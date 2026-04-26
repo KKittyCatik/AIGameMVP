@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import SessionList from './components/SessionList';
 import ChatWindow from './components/ChatWindow';
 import StatePanel from './components/StatePanel';
+import PromptPanel from './components/PromptPanel';
 import './App.css';
 
 // In dev: connect directly to the Go backend.
@@ -13,6 +14,7 @@ export default function App() {
   const [sessions, setSessions] = useState({});
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [globalPrompt, setGlobalPrompt] = useState('');
 
   useEffect(() => {
     const socket = new WebSocket(WS_URL);
@@ -24,6 +26,7 @@ export default function App() {
       const data = JSON.parse(event.data);
       const incoming = data.sessions || {};
       setSessions(incoming);
+      setGlobalPrompt(data.global_prompt || '');
 
       // Auto-select first session if current selection is gone
       setActiveSessionId((prev) => {
@@ -49,6 +52,18 @@ export default function App() {
     }
   };
 
+  const handleUpdateGlobalPrompt = (text) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action: 'update_global_prompt', text }));
+    }
+  };
+
+  const handleUpdateSessionPrompt = (text) => {
+    if (ws && ws.readyState === WebSocket.OPEN && activeSessionId) {
+      ws.send(JSON.stringify({ action: 'update_session_prompt', session_id: activeSessionId, text }));
+    }
+  };
+
   const activeSession = sessions[activeSessionId] || null;
 
   return (
@@ -59,6 +74,13 @@ export default function App() {
           {connected ? '● Connected' : '○ Disconnected'}
         </span>
       </header>
+      <PromptPanel
+        globalPrompt={globalPrompt}
+        sessionPrompt={activeSession?.session_prompt || ''}
+        onUpdateGlobal={handleUpdateGlobalPrompt}
+        onUpdateSession={handleUpdateSessionPrompt}
+        hasActiveSession={!!activeSession}
+      />
       <main className="app-body">
         <SessionList
           sessions={sessions}
